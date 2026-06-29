@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Onyx",
+    "slug": "onyx-music",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0A0A0A"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.praty.onyx"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0A0A"
+      },
+      "package": "com.praty.pratify"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset",
+      "expo-font"
+    ],
+    "scheme": "onyx",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4ee11efa-423a-43d2-816e-5dae7ba3cd66"
+      }
+    }
+  }
+}
