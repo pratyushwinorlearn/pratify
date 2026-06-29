@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import TrackPlayer, { State as TrackPlayerState, Event } from 'react-native-track-player';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Audio, AVPlaybackStatus } from 'expo-av';
 import { api, Song } from '../services/api';
 
 type RepeatMode = 'off' | 'all' | 'one';
@@ -51,44 +51,8 @@ type PlayerState = {
   downloadSong: (song: Song) => Promise<void>;
 };
 
-// Polling mechanism to sync native TrackPlayer progress with Zustand UI state
-let progressInterval: NodeJS.Timeout | null = null;
-
-const startProgressInterval = (get: any, set: any) => {
-  if (progressInterval) clearInterval(progressInterval);
-  
-  progressInterval = setInterval(async () => {
-    try {
-      const progress = await TrackPlayer.getProgress();
-      const playbackState = await TrackPlayer.getPlaybackState();
-      
-      // Handle TrackPlayer V4 state logic
-      const stateVal = typeof playbackState === 'object' ? playbackState.state : playbackState;
-      const isPlaying = stateVal === TrackPlayerState.Playing || stateVal === 'playing';
-      
-      set({ 
-        position: progress.position * 1000, 
-        duration: (progress.duration * 1000) || get().duration,
-        isPlaying
-      });
-
-      // Automatically trigger next track when the native engine finishes
-      if (stateVal === TrackPlayerState.Ended || stateVal === 'ended') {
-        clearInterval(progressInterval!);
-        const { repeat, playNext, seekTo } = get();
-        if (repeat === 'one') {
-          await seekTo(0);
-          await TrackPlayer.play();
-          startProgressInterval(get, set);
-        } else {
-          playNext();
-        }
-      }
-    } catch (e) {
-      // Background threading safety catch
-    }
-  }, 1000);
-};
+// Hold the Expo AV Sound instance globally outside the store state
+let soundInstance: Audio.Sound | null = null;
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
   currentSong: null,
@@ -115,14 +79,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       if (storedLikes) set({ likedSongs: JSON.parse(storedLikes) });
       if (storedPlaylists) set({ playlists: JSON.parse(storedPlaylists) });
       if (storedDownloads) set({ downloadedSongs: JSON.parse(storedDownloads) });
-
-      // ─── WIRE UP LOCK SCREEN NOTIFICATION CONTROLS ───
-      TrackPlayer.addEventListener(Event.RemotePlay, () => get().togglePlay());
-      TrackPlayer.addEventListener(Event.RemotePause, () => get().togglePlay());
-      TrackPlayer.addEventListener(Event.RemoteNext, () => get().playNext());
-      TrackPlayer.addEventListener(Event.RemotePrevious, () => get().playPrev());
-      TrackPlayer.addEventListener(Event.RemoteSeek, (event) => get().seekTo(event.position * 1000));
-      
     } catch (err) {
       console.error("Error loading saved data:", err);
     }
@@ -142,7 +98,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   playSong: async (song, queue) => {
     const state = get();
-    
     set({ isLoading: true, currentSong: song, isPlaying: false, position: 0 });
 
     if (queue) {
@@ -172,21 +127,42 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         audioSource = streamData.streamUrl;
       }
 
-      // Feed the track and lock-screen metadata into the OS native engine
-      await TrackPlayer.reset();
-      await TrackPlayer.add({
-        id: song.id,
-        url: audioSource,
-        title: song.name,
-        artist: song.artists?.primary?.map(a => a.name).join(', ') || 'Unknown Artist',
-        artwork: song.image || undefined,
-        duration: song.duration,
-      });
-
-      await TrackPlayer.play();
-      startProgressInterval(get, set);
+      // --- EXPO AV INTEGRATION ---
       
+      // 1. Unload the previous song if it exists
+      if (soundInstance) {
+        await soundInstance.unloadAsync();
+      }
+
+      // 2. Load and play the new song
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: audioSource },
+        { shouldPlay: true },
+        (status: AVPlaybackStatus) => {
+          if (status.isLoaded) {
+            // Automatically sync UI with native playback progress
+            set({
+              position: status.positionMillis,
+              duration: status.durationMillis || song.duration * 1000,
+              isPlaying: status.isPlaying,
+            });
+
+            // Handle automatic track switching when a song finishes
+            if (status.didJustFinish) {
+              const { repeat, playNext, seekTo } = get();
+              if (repeat === 'one') {
+                seekTo(0).then(() => soundInstance?.playAsync());
+              } else {
+                playNext();
+              }
+            }
+          }
+        }
+      );
+
+      soundInstance = sound;
       set({ isLoading: false, isPlaying: true, duration: song.duration * 1000 });
+      
     } catch (err) {
       console.error('Play error:', err);
       set({ isLoading: false });
@@ -195,18 +171,20 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   togglePlay: async () => {
     const { isPlaying } = get();
-    if (isPlaying) {
-      await TrackPlayer.pause();
-    } else {
-      await TrackPlayer.play();
+    if (soundInstance) {
+      if (isPlaying) {
+        await soundInstance.pauseAsync();
+      } else {
+        await soundInstance.playAsync();
+      }
     }
-    set({ isPlaying: !isPlaying });
   },
 
   seekTo: async (positionMs) => {
-    // TrackPlayer expects seconds natively, so we divide by 1000
-    await TrackPlayer.seekTo(positionMs / 1000);
-    set({ position: positionMs });
+    if (soundInstance) {
+      await soundInstance.setPositionAsync(positionMs);
+      set({ position: positionMs });
+    }
   },
 
   playNext: async () => {

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Onyx",
-    "slug": "onyx-music",
+    "name": "Pratify",
+    "slug": "pratify",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -22,7 +22,15 @@
     "plugins": [
       "expo-router",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": false
+          }
+        }
+      ]
     ],
     "scheme": "onyx",
     "extra": {

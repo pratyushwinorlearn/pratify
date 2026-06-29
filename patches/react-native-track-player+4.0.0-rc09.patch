@@ -1,0 +1,38 @@
+diff --git a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt
+index b2409a0..8efa1ad 100644
+--- a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt
++++ b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt
+@@ -545,7 +545,8 @@ class MusicModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
+         if (verifyServiceBoundOrReject(callback)) return@launch
+ 
+         if (index >= 0 && index < musicService.tracks.size) {
+-            callback.resolve(Arguments.fromBundle(musicService.tracks[index].originalItem))
++            // FIXED: Added the ?: Bundle() fallback
++            callback.resolve(Arguments.fromBundle(musicService.tracks[index].originalItem ?: Bundle()))
+         } else {
+             callback.resolve(null)
+         }
+@@ -585,7 +586,8 @@ class MusicModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
+         callback.resolve(
+             if (musicService.tracks.isEmpty()) null
+             else Arguments.fromBundle(
+-                musicService.tracks[musicService.getCurrentTrackIndex()].originalItem
++                // FIXED: Added the ?: Bundle() fallback
++                musicService.tracks[musicService.getCurrentTrackIndex()].originalItem ?: Bundle()
+             )
+         )
+     }
+diff --git a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
+index 842d16e..c66e0a1 100644
+--- a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
++++ b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
+@@ -742,7 +742,8 @@ class MusicService : HeadlessJsTaskService() {
+     }
+ 
+     @MainThread
+-    override fun onBind(intent: Intent?): IBinder {
++    // FIXED: Removed '?' from Intent, added '?' to IBinder
++    override fun onBind(intent: Intent): IBinder? {
+         return binder
+     }
+ 
