@@ -31,6 +31,6 @@ A high-performance, full-stack music streaming application built with React Nati
 
 ### 1. Clone & Install
 ```bash
-git clone [https://github.com/pratyushwinorlearn/pratify.git](https://github.com/pratyushwinorlearn/pratify.git)
+git clone https://github.com/pratyushwinorlearn/pratify.git
 cd pratify
 npm install
